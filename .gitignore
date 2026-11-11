@@ -1,0 +1,18 @@
+# Simulation executables
+sim
+sim_*
+
+# Waveform outputs
+*.vcd
+*.fst
+
+# Generated synthesis files
+*.net
+*.blif
+*.json
+*.svg
+
+# Temporary files
+*.tmp
+*.log
+*~
