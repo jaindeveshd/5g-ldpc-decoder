@@ -23,6 +23,8 @@ module layered_fsm #(
     input wire layer_done,
 
     // Syndrome checker interface
+    output reg syndrome_start,
+    input wire syndrome_done,
     input wire syndrome_pass,
 
     // Status
@@ -32,15 +34,16 @@ module layered_fsm #(
 );
 
     // FSM states
-    localparam IDLE       = 3'd0;
-    localparam FETCH      = 3'd1;
-    localparam WAIT_ROM   = 3'd2;
-    localparam START_LAYER = 3'd3;
-    localparam WAIT_LAYER = 3'd4;
-    localparam CHECK_DONE = 3'd5;
-    localparam FINISH     = 3'd6;
+    localparam IDLE           = 4'd0;
+    localparam FETCH          = 4'd1;
+    localparam WAIT_ROM       = 4'd2;
+    localparam START_LAYER    = 4'd3;
+    localparam WAIT_LAYER     = 4'd4;
+    localparam CHECK_START    = 4'd5;
+    localparam WAIT_SYNDROME  = 4'd6;
+    localparam FINISH         = 4'd7;
 
-    reg [2:0] state;
+    reg [3:0] state;
     reg [LAYER_ADDR_WIDTH-1:0] layer_index;
 
     // Sequential state and counter logic
@@ -57,7 +60,7 @@ module layered_fsm #(
                     if (start) begin
                         layer_index     <= 0;
                         iteration_count <= 1;
-                        state <= FETCH;
+                        state           <= FETCH;
                     end
                 end
 
@@ -77,7 +80,7 @@ module layered_fsm #(
                 WAIT_LAYER: begin
                     if (layer_done) begin
                         if (layer_index == num_layers - 1'b1)
-                            state <= CHECK_DONE;
+                            state <= CHECK_START;
                         else begin
                             layer_index <= layer_index + 1'b1;
                             state <= FETCH;
@@ -85,15 +88,21 @@ module layered_fsm #(
                     end
                 end
 
-                CHECK_DONE: begin
-                    if (syndrome_pass ||
-                        (iteration_count >= max_iterations)) begin
-                        state <= FINISH;
-                    end
-                    else begin
-                        iteration_count <= iteration_count + 1'b1;
-                        layer_index <= 0;
-                        state <= FETCH;
+                CHECK_START: begin
+                    state <= WAIT_SYNDROME;
+                end
+
+                WAIT_SYNDROME: begin
+                    if (syndrome_done) begin
+                        if (syndrome_pass ||
+                            (iteration_count >= max_iterations)) begin
+                            state <= FINISH;
+                        end
+                        else begin
+                            iteration_count <= iteration_count + 1'b1;
+                            layer_index <= 0;
+                            state <= FETCH;
+                        end
                     end
                 end
 
@@ -102,8 +111,8 @@ module layered_fsm #(
                 end
 
                 default: begin
-                    state <= IDLE;
-                    layer_index <= 0;
+                    state           <= IDLE;
+                    layer_index     <= 0;
                     iteration_count <= 0;
                 end
 
@@ -113,11 +122,12 @@ module layered_fsm #(
 
     // Control outputs
     always @* begin
-        rom_en     = 1'b0;
-        rom_addr   = layer_index;
-        layer_start = 1'b0;
-        busy       = 1'b1;
-        done       = 1'b0;
+        rom_en        = 1'b0;
+        rom_addr      = layer_index;
+        layer_start   = 1'b0;
+        syndrome_start = 1'b0;
+        busy          = 1'b1;
+        done          = 1'b0;
 
         case (state)
 
@@ -133,13 +143,17 @@ module layered_fsm #(
                 layer_start = 1'b1;
             end
 
+            CHECK_START: begin
+                syndrome_start = 1'b1;
+            end
+
             FINISH: begin
                 busy = 1'b0;
                 done = 1'b1;
             end
 
             default: begin
-                // Outputs remain at their default values
+                // Outputs remain at default values
             end
 
         endcase

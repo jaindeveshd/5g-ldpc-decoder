@@ -13,6 +13,9 @@ module tb_layered_fsm;
 
     wire layer_start;
     reg layer_done;
+
+    wire syndrome_start;
+    reg syndrome_done;
     reg syndrome_pass;
 
     wire busy, done;
@@ -20,34 +23,43 @@ module tb_layered_fsm;
 
     integer errors;
     integer layer_pulses;
+    integer syndrome_pulses;
     integer timeout;
 
+    // DUT
     layered_fsm DUT (
         .clk(clk),
         .rst_n(rst_n),
         .start(start),
         .num_layers(num_layers),
         .max_iterations(max_iterations),
+
         .rom_en(rom_en),
         .rom_addr(rom_addr),
         .rom_valid(rom_valid),
+
         .layer_start(layer_start),
         .layer_done(layer_done),
+
+        .syndrome_start(syndrome_start),
+        .syndrome_done(syndrome_done),
         .syndrome_pass(syndrome_pass),
+
         .busy(busy),
         .done(done),
         .iteration_count(iteration_count)
     );
 
-    // Clock: 10 ns period
+    // Clock generation: 10 ns period
     initial clk = 0;
     always #5 clk = ~clk;
 
-    // Initialise and count transactions
+    // Simulated ROM, datapath and syndrome checker
     always @(posedge clk) begin
         if (!rst_n) begin
-            rom_valid <= 0;
-            layer_done <= 0;
+            rom_valid     <= 0;
+            layer_done    <= 0;
+            syndrome_done <= 0;
         end
         else begin
             // ROM responds one clock after request
@@ -56,8 +68,14 @@ module tb_layered_fsm;
             // Datapath completes one clock after layer_start
             layer_done <= layer_start;
 
+            // Syndrome checker completes one clock after start
+            syndrome_done <= syndrome_start;
+
             if (layer_start)
                 layer_pulses <= layer_pulses + 1;
+
+            if (syndrome_start)
+                syndrome_pulses <= syndrome_pulses + 1;
         end
     end
 
@@ -65,13 +83,18 @@ module tb_layered_fsm;
     task reset_dut;
         begin
             @(negedge clk);
+
             rst_n = 0;
             start = 0;
             syndrome_pass = 0;
+
             layer_pulses = 0;
+            syndrome_pulses = 0;
 
             repeat (2) @(negedge clk);
+
             rst_n = 1;
+
             @(negedge clk);
         end
     endtask
@@ -81,6 +104,7 @@ module tb_layered_fsm;
         begin
             @(negedge clk);
             start = 1;
+
             @(negedge clk);
             start = 0;
         end
@@ -104,22 +128,30 @@ module tb_layered_fsm;
     endtask
 
     initial begin
-        $dumpfile("layered_fsm.vcd");
+
+        $dumpfile("block9_layered_fsm/layered_fsm.vcd");
         $dumpvars(0, tb_layered_fsm);
 
         rst_n = 0;
         start = 0;
+
         num_layers = 3;
         max_iterations = 1;
+
         rom_valid = 0;
         layer_done = 0;
+
+        syndrome_done = 0;
         syndrome_pass = 0;
+
         errors = 0;
         layer_pulses = 0;
+        syndrome_pulses = 0;
 
         // --------------------------------
-        // TEST 1: One iteration
+        // TEST 1: Single iteration
         // --------------------------------
+        $display("--------------------------------");
         $display("TEST 1: Single iteration");
 
         reset_dut();
@@ -130,18 +162,20 @@ module tb_layered_fsm;
         start_decoder();
         wait_for_done();
 
-        if (iteration_count == 1 && layer_pulses == 3)
+        if (iteration_count == 1 &&
+            layer_pulses == 3 &&
+            syndrome_pulses == 1)
             $display("PASS: Single iteration completed");
         else begin
-            $display("FAIL: Iterations=%0d Layers=%0d",
-                     iteration_count, layer_pulses);
+            $display("FAIL: Iterations=%0d Layers=%0d Syndrome checks=%0d",
+                     iteration_count, layer_pulses, syndrome_pulses);
             errors = errors + 1;
         end
 
         // --------------------------------
-        // TEST 2: Two iterations
+        // TEST 2: Maximum iteration limit
         // --------------------------------
-        $display("TEST 2: Maximum iteration limit");
+        $display("\nTEST 2: Maximum iteration limit");
 
         reset_dut();
 
@@ -151,18 +185,20 @@ module tb_layered_fsm;
         start_decoder();
         wait_for_done();
 
-        if (iteration_count == 2 && layer_pulses == 4)
+        if (iteration_count == 2 &&
+            layer_pulses == 4 &&
+            syndrome_pulses == 2)
             $display("PASS: Two iterations completed");
         else begin
-            $display("FAIL: Iterations=%0d Layers=%0d",
-                     iteration_count, layer_pulses);
+            $display("FAIL: Iterations=%0d Layers=%0d Syndrome checks=%0d",
+                     iteration_count, layer_pulses, syndrome_pulses);
             errors = errors + 1;
         end
 
         // --------------------------------
-        // TEST 3: Early termination
+        // TEST 3: Syndrome early termination
         // --------------------------------
-        $display("TEST 3: Syndrome early termination");
+        $display("\nTEST 3: Syndrome early termination");
 
         reset_dut();
 
@@ -171,27 +207,29 @@ module tb_layered_fsm;
 
         start_decoder();
 
-        // Wait for completion of the first full layer pass
+        // Wait until the first complete layer pass
         wait (layer_pulses == 2);
 
-        // Assert syndrome before the FSM evaluates CHECK_DONE
+        // Simulate a successful syndrome result
         @(negedge clk);
         syndrome_pass = 1;
 
         wait_for_done();
 
-        if (iteration_count == 1 && layer_pulses == 2)
+        if (iteration_count == 1 &&
+            layer_pulses == 2 &&
+            syndrome_pulses == 1)
             $display("PASS: Early termination completed");
         else begin
-            $display("FAIL: Iterations=%0d Layers=%0d",
-                     iteration_count, layer_pulses);
+            $display("FAIL: Iterations=%0d Layers=%0d Syndrome checks=%0d",
+                     iteration_count, layer_pulses, syndrome_pulses);
             errors = errors + 1;
         end
 
         // --------------------------------
         // FINAL RESULT
         // --------------------------------
-        $display("--------------------------------");
+        $display("\n--------------------------------");
         $display("Total errors: %0d", errors);
 
         if (errors == 0)
@@ -202,7 +240,7 @@ module tb_layered_fsm;
         $display("--------------------------------");
 
         $finish;
+
     end
 
 endmodule
-
