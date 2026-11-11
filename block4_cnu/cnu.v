@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 module cnu (
     input  wire signed [7:0] L0,
     input  wire signed [7:0] L1,

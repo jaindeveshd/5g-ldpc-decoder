@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 module sign_magnitude (
     input  wire signed [7:0] L,
     output wire              sign,

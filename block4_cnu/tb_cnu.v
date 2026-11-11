@@ -27,6 +27,9 @@ module tb_cnu;
     integer min_excl;
     integer sign_xor;
     integer exp_mag;
+    integer sorted_mags [0:3];
+    integer temp;
+    integer expected_min1, expected_min2;
 
     task check_case;
         input integer a, b, c, d;
@@ -49,6 +52,23 @@ module tb_cnu;
                 else
                     mags[j] = vals[j];
             end
+
+            // Independently sort magnitudes to obtain min1 and min2.
+            for (j = 0; j < 4; j = j + 1)
+                sorted_mags[j] = mags[j];
+
+            for (j = 0; j < 3; j = j + 1) begin
+                for (k = 0; k < 3-j; k = k + 1) begin
+                    if (sorted_mags[k] > sorted_mags[k+1]) begin
+                        temp = sorted_mags[k];
+                        sorted_mags[k] = sorted_mags[k+1];
+                        sorted_mags[k+1] = temp;
+                    end
+                end
+            end
+
+            expected_min1 = sorted_mags[0];
+            expected_min2 = sorted_mags[1];
 
             // Calculate each expected outgoing message.
             // Exclude the corresponding input.
@@ -75,7 +95,9 @@ module tb_cnu;
 
             tests = tests + 1;
 
-            if ((Y0 !== expected[0][7:0]) ||
+            if ((min1 !== expected_min1[7:0]) ||
+                (min2 !== expected_min2[7:0]) ||
+                (Y0 !== expected[0][7:0]) ||
                 (Y1 !== expected[1][7:0]) ||
                 (Y2 !== expected[2][7:0]) ||
                 (Y3 !== expected[3][7:0])) begin
@@ -85,8 +107,8 @@ module tb_cnu;
                 $display("ERROR: Inputs = %0d, %0d, %0d, %0d",
                          vals[0], vals[1], vals[2], vals[3]);
 
-                $display("Actual   : Y0=%0d Y1=%0d Y2=%0d Y3=%0d",
-                         $signed(Y0), $signed(Y1),
+                $display("Actual   : min1=%0d min2=%0d Y0=%0d Y1=%0d Y2=%0d Y3=%0d",
+                         min1, min2, $signed(Y0), $signed(Y1),
                          $signed(Y2), $signed(Y3));
 
                 $display("Expected : Y0=%0d Y1=%0d Y2=%0d Y3=%0d",
