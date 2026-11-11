@@ -1,3 +1,5 @@
+
+
 # Simulation executables
 sim
 sim_*
@@ -17,3 +19,8 @@ sim_*
 *.log
 *~
 backup/
+
+# Simulation outputs
+*.vcd
+sim
+sim_*
