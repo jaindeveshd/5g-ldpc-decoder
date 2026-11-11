@@ -30,7 +30,16 @@ module tb_vnu;
             R_old = y;
             R_new = z;
 
-            expected = x - y + z;
+            // Stage 1: Saturated subtraction
+            expected = x - y;
+
+            if (expected > 127)
+                expected = 127;
+            else if (expected < -128)
+                expected = -128;
+
+            // Stage 2: Saturated addition
+            expected = expected + z;
 
             if (expected > 127)
                 expected = 127;
