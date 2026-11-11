@@ -16,3 +16,4 @@ sim_*
 *.tmp
 *.log
 *~
+backup/
