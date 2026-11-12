@@ -468,10 +468,16 @@ module ldpc_full_decoder_system #(
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            done                   <= 1'b0;
-            decoder_success        <= 1'b0;
+            done                    <= 1'b0;
+            decoder_success         <= 1'b0;
             iteration_limit_reached <= 1'b0;
-            error                  <= 1'b0;
+            error                   <= 1'b0;
+        end
+        else if (loader_start) begin
+            done                    <= 1'b0;
+            decoder_success         <= 1'b0;
+            iteration_limit_reached <= 1'b0;
+            error                   <= 1'b0;
         end
         else begin
             if (loader_error || layer_error ||
