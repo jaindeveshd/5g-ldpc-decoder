@@ -24,3 +24,52 @@ backup/
 *.vcd
 sim
 sim_*
+
+
+# Python environments and cache
+.venv/
+__pycache__/
+*.pyc
+
+# Simulation executables and generated outputs
+*.out
+*.vvp
+*.o
+
+# Known generated executables
+block12_bg_rom/debug_rom
+block13_generalized_cnu/test_cnu
+block13_generalized_cnu/test_equivalence
+block13_generalized_datapath/test_datapath
+block13_generalized_shifter/test_shifter
+block14_generalized_memory/test_address
+block14_generalized_memory/test_gather
+block14_generalized_memory/test_layer_processing
+block14_generalized_memory/test_layer_wrapper
+block14_generalized_memory/test_memory
+block14_generalized_memory/test_writeback
+block15_bg_layer_integration/block15_sim
+block18_system_integration/system_test
+block19_system_integration/full_decoder_bg2_test
+block19_system_integration/full_decoder_compile
+block19_system_integration/full_decoder_test
+
+
+# Block 16 generated executables
+block16_axi_stream/axi_loader_compile
+block16_axi_stream/axi_loader_test
+block16_axi_stream/axi_memory_test
+
+# Block 17 generated executables
+block17_banked_memory/banked_memory_test
+block17_banked_memory/dual_port_ram_test
+block17_banked_memory/ldpc_banked_memory_compile
+block17_banked_memory/ldpc_banked_memory_test
+
+# Block 19 generated executables
+block19_iteration_controller/test_iteration
+block19_syndrome_checker/syndrome_compile
+block19_syndrome_checker/syndrome_test
+
+# Root generated executable
+/block15_sim

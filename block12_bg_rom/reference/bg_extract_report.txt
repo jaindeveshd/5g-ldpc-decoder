@@ -1,0 +1,19 @@
+BG1
+  Matrix dimensions: 46 x 68
+  Left-half edges: 79
+  Right-half edges: 79
+  Total edges: 158
+  Rows represented: 20/46
+  Validation errors: 1
+
+BG2
+  Matrix dimensions: 42 x 52
+  Left-half edges: 77
+  Right-half edges: 77
+  Total edges: 154
+  Rows represented: 33/42
+  Validation errors: 1
+
+VALIDATION FAILED
+BG1: rows with no extracted edges: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]
+BG2: rows with no extracted edges: [12, 13, 14, 15, 37, 38, 39, 40, 41]
