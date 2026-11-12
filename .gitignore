@@ -73,3 +73,4 @@ block19_syndrome_checker/syndrome_test
 
 # Root generated executable
 /block15_sim
+build/
