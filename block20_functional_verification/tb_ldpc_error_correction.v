@@ -1,8 +1,9 @@
 
 `timescale 1ns/1ps
 
-module tb_ldpc_error_correction;
-
+module tb_ldpc_error_correction #(
+    parameter integer ERROR_INDEX = 0
+);
     reg clk;
     reg rst_n;
 
@@ -128,41 +129,48 @@ module tb_ldpc_error_correction;
         end
     endtask
 
-    // Main experiment
-    initial begin
+// Main experiment
+initial begin
 
-        functional_pass = 1;
-        hard_errors = 0;
-        readback_errors = 0;
-        layer_count = 0;
+    functional_pass = 1;
 
-        rst_n = 1'b0;
+    // Validate injected error location
+    if (ERROR_INDEX < 0 || ERROR_INDEX >= 136) begin
+        $display("FAIL: ERROR_INDEX must be between 0 and 135");
+        $finish;
+    end
 
-        start = 1'b0;
-        bg_select = 1'b0;
-        zc = 10'd2;
-        max_iterations = 8'd10;
+    hard_errors = 0;
+    readback_errors = 0;
+    layer_count = 0;
 
-        s_axis_tdata = 8'd0;
-        s_axis_tvalid = 1'b0;
-        s_axis_tlast = 1'b0;
+    rst_n = 1'b0;
 
-        llr_readback_en = 1'b0;
-        llr_readback_addr = 15'd0;
+    start = 1'b0;
+    bg_select = 1'b0;
+    zc = 10'd2;
+    max_iterations = 8'd10;
 
-        $display("");
-        $display("========================================");
-        $display(" BLOCK 20: FUNCTIONAL ERROR CORRECTION");
-        $display("========================================");
+    s_axis_tdata = 8'd0;
+    s_axis_tvalid = 1'b0;
+    s_axis_tlast = 1'b0;
 
-        // Reset
-        repeat (5) @(posedge clk);
+    llr_readback_en = 1'b0;
+    llr_readback_addr = 15'd0;
 
-        @(negedge clk);
-        rst_n = 1'b1;
+    $display("");
+    $display("========================================");
+    $display(" BLOCK 20: FUNCTIONAL ERROR CORRECTION");
+    $display("========================================");
 
-        // Configuration check
-        @(posedge clk);
+    // Reset
+    repeat (5) @(posedge clk);
+
+    @(negedge clk);
+    rst_n = 1'b1;
+
+    // Configuration check
+    @(posedge clk);
         #1;
 
         if (cfg_valid !== 1'b1) begin
@@ -185,12 +193,13 @@ module tb_ldpc_error_correction;
         // All remaining addresses receive +20 (8'h14).
 
         $display("Loading 136 LLR values...");
-        $display("Corrupted input: address 0 = -20");
-
+$display("Corrupted input index: %0d", ERROR_INDEX);
+$display("Physical LLR address: %0d",
+         (ERROR_INDEX / 2) * 384 + (ERROR_INDEX % 2));
         for (i = 0; i < 136; i = i + 1) begin
 
-            if (i == 0)
-                send_beat(8'hEC, 1'b0);
+            if (i == ERROR_INDEX)
+                send_beat(8'hEC, (i == 135));
             else
                 send_beat(8'h14, (i == 135));
 
