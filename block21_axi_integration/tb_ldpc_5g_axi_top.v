@@ -50,6 +50,12 @@ module tb_ldpc_5g_axi_top;
     integer timeout_count;
     reg [31:0] status_value;
 
+    // AXI output backpressure stability checker
+    reg stall_previous;
+    reg [7:0] stalled_data;
+    reg stalled_last;
+    integer backpressure_checks;
+
     // ------------------------------------------------
     // DUT
     // ------------------------------------------------
@@ -158,6 +164,77 @@ module tb_ldpc_5g_axi_top;
             @(negedge aclk);
             s_axi_bready = 1'b0;
 
+        end
+    endtask
+
+    // ------------------------------------------------
+    // AXI4-Lite W-before-AW test with delayed response
+    // ------------------------------------------------
+
+    task axi_write_w_first_stall;
+        input [7:0] address;
+        input [31:0] data;
+        begin
+            s_axi_bready = 1'b0;
+
+            // Send write data before write address.
+            @(negedge aclk);
+            s_axi_wdata = data;
+            s_axi_wstrb = 4'b1111;
+            s_axi_wvalid = 1'b1;
+
+            do @(posedge aclk);
+            while (!s_axi_wready);
+
+            @(negedge aclk);
+            s_axi_wvalid = 1'b0;
+
+            // Deliberately delay the address channel.
+            repeat (2) @(negedge aclk);
+
+            s_axi_awaddr = address;
+            s_axi_awvalid = 1'b1;
+
+            do @(posedge aclk);
+            while (!s_axi_awready);
+
+            @(negedge aclk);
+            s_axi_awvalid = 1'b0;
+
+            // Wait for response without accepting it.
+            timeout_count = 0;
+            while (!s_axi_bvalid && timeout_count < 20) begin
+                @(posedge aclk);
+                timeout_count = timeout_count + 1;
+            end
+
+            if (!s_axi_bvalid) begin
+                $display("FAIL: W-before-AW response timeout");
+                $fatal;
+            end
+
+            if (s_axi_bresp !== 2'b00) begin
+                $display("FAIL: W-before-AW response error");
+                $fatal;
+            end
+
+            // BVALID and BRESP must remain stable while BREADY is low.
+            repeat (3) begin
+                @(posedge aclk);
+                if (!s_axi_bvalid || s_axi_bresp !== 2'b00) begin
+                    $display("FAIL: AXI-Lite response changed while stalled");
+                    $fatal;
+                end
+            end
+
+            @(negedge aclk);
+            s_axi_bready = 1'b1;
+
+            do @(posedge aclk);
+            while (!s_axi_bvalid);
+
+            @(negedge aclk);
+            s_axi_bready = 1'b0;
         end
     endtask
 
@@ -280,6 +357,36 @@ module tb_ldpc_5g_axi_top;
         $display("Configuring BG1...");
         axi_write(8'h08, 32'd0);
 
+        // Test rejection of an unsupported lifting size.
+        $display("Testing invalid lifting size Zc=17...");
+        axi_write(8'h0C, 32'd17);
+
+        if (dut.cfg_valid !== 1'b0) begin
+            $display("FAIL: Invalid Zc was accepted");
+            $fatal;
+        end
+
+        axi_write(8'h00, 32'd1);
+        repeat (3) @(posedge aclk);
+
+        if (dut.engine_start !== 1'b0 ||
+            dut.wrapper_busy !== 1'b0) begin
+            $display("FAIL: Decoder started with invalid configuration");
+            $fatal;
+        end
+
+        $display("Invalid Zc rejection : PASS");
+        $display("Invalid START blocked : PASS");
+
+        // Restore valid Zc = 2.
+        $display("Restoring lifting size Zc=2...");
+        axi_write(8'h0C, 32'd2);
+
+        if (dut.cfg_valid !== 1'b1) begin
+            $display("FAIL: Valid Zc was not restored");
+            $fatal;
+        end
+
         // Configure Zc = 2
         $display("Configuring lifting size Zc=2...");
         axi_write(8'h0C, 32'd2);
@@ -287,6 +394,12 @@ module tb_ldpc_5g_axi_top;
         // Configure maximum iterations = 10
         $display("Configuring maximum iterations...");
         axi_write(8'h10, 32'd10);
+
+        // Verify W-before-AW ordering and delayed B response.
+        $display("Testing AXI-Lite W-before-AW and response stall...");
+        axi_write_w_first_stall(8'h08, 32'd0);
+        $display("AXI-Lite independent-channel test : PASS");
+        $display("AXI-Lite delayed-response test    : PASS");
 
         // Read configuration back
         axi_read(8'h08, status_value);
@@ -370,6 +483,11 @@ module tb_ldpc_5g_axi_top;
         output_beats = 0;
         error_count = 0;
 
+        stall_previous = 0;
+        stalled_data = 8'h00;
+        stalled_last = 0;
+        backpressure_checks = 0;
+
         timeout_count = 0;
 
         while (output_beats < 136 && timeout_count < 20000) begin
@@ -383,6 +501,30 @@ module tb_ldpc_5g_axi_top;
                 m_axis_tready = 1'b0;
 
             @(posedge aclk);
+
+            // Check output stability following a stalled transfer.
+            if (stall_previous) begin
+                backpressure_checks = backpressure_checks + 1;
+
+                if (!m_axis_tvalid ||
+                    m_axis_tdata !== stalled_data ||
+                    m_axis_tlast !== stalled_last) begin
+
+                    $display("FAIL: AXI output changed during backpressure");
+                    $display("Expected: VALID=1 DATA=%h LAST=%b",
+                             stalled_data, stalled_last);
+                    $display("Actual:   VALID=%b DATA=%h LAST=%b",
+                             m_axis_tvalid, m_axis_tdata, m_axis_tlast);
+                    $fatal;
+                end
+            end
+
+            stall_previous = m_axis_tvalid && !m_axis_tready;
+
+            if (stall_previous) begin
+                stalled_data = m_axis_tdata;
+                stalled_last = m_axis_tlast;
+            end
 
             if (m_axis_tvalid && m_axis_tready) begin
 
@@ -409,6 +551,14 @@ module tb_ldpc_5g_axi_top;
 
             timeout_count = timeout_count + 1;
 
+        end
+
+        $display("Backpressure stability checks = %0d",
+                 backpressure_checks);
+
+        if (backpressure_checks == 0) begin
+            $display("FAIL: No backpressure stability checks performed");
+            $fatal;
         end
 
         @(negedge aclk);
