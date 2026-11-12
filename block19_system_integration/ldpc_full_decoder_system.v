@@ -1,4 +1,3 @@
-
 `timescale 1ns/1ps
 
 module ldpc_full_decoder_system #(
@@ -45,7 +44,12 @@ module ldpc_full_decoder_system #(
     output wire layer_busy,
     output wire layer_done,
     output wire syndrome_busy,
-    output wire syndrome_pass
+    output wire syndrome_pass,
+
+    // Verification-only LLR memory readback (Port B)
+    input wire llr_readback_en,
+    input wire [LLR_ADDR_WIDTH-1:0] llr_readback_addr,
+    output wire [DATA_WIDTH-1:0] llr_readback_data
 );
 
     // ------------------------------------------------
@@ -425,12 +429,12 @@ module ldpc_full_decoder_system #(
         .llr_dout_a(memory_llr_dout),
         .llr_valid_a(memory_llr_valid),
 
-        // LLR Port B reserved
-        .llr_en_b(1'b0),
+        // LLR Port B: verification readback only (read-only)
+        .llr_en_b(llr_readback_en),
         .llr_we_b(1'b0),
-        .llr_addr_b({LLR_ADDR_WIDTH{1'b0}}),
+        .llr_addr_b(llr_readback_addr),
         .llr_din_b({DATA_WIDTH{1'b0}}),
-        .llr_dout_b(),
+        .llr_dout_b(llr_readback_data),
         .llr_valid_b(),
 
         // Edge Port A
@@ -493,4 +497,3 @@ module ldpc_full_decoder_system #(
         decoder_phase;
 
 endmodule
-

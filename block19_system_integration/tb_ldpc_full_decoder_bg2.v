@@ -77,7 +77,11 @@ module tb_ldpc_full_decoder_system;
         .layer_busy(layer_busy),
         .layer_done(layer_done),
         .syndrome_busy(syndrome_busy),
-        .syndrome_pass(syndrome_pass)
+.syndrome_pass(syndrome_pass),
+
+.llr_readback_en(1'b0),
+.llr_readback_addr(15'd0),
+.llr_readback_data()
     );
 
     // Clock: 100 MHz
