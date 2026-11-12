@@ -425,6 +425,67 @@ module tb_ldpc_5g_axi_top;
             $fatal;
         end
 
+        // ------------------------------------------------
+        // Negative test: premature AXI-Stream TLAST
+        // ------------------------------------------------
+
+        $display("Testing premature TLAST rejection...");
+
+        // Start a fresh transaction.
+        axi_write(8'h00, 32'd1);
+
+        // BG1, Zc=2 requires 136 beats.
+        // Assert TLAST on the first beat deliberately.
+        send_input_beat(8'h14, 1'b1);
+
+        // Wait for the decoder to report the loader error.
+        timeout_count = 0;
+        status_value = 32'd0;
+
+        while (!status_value[1] && timeout_count < 100) begin
+            axi_read(8'h04, status_value);
+            timeout_count = timeout_count + 1;
+        end
+
+        if (!status_value[1]) begin
+            $display("FAIL: Early-TLAST transaction did not complete");
+            $fatal;
+        end
+
+        if (!status_value[3]) begin
+            $display("FAIL: Early-TLAST error was not reported");
+            $fatal;
+        end
+
+        if (status_value[2]) begin
+            $display("FAIL: Decoder incorrectly reported success");
+            $fatal;
+        end
+
+        // Confirm that only the first beat was accepted.
+        axi_read(8'h14, status_value);
+
+        if (status_value != 1) begin
+            $display("FAIL: Incorrect loaded count after early TLAST: %0d",
+                     status_value);
+            $fatal;
+        end
+
+        // No decoded output must be generated for an invalid input frame.
+        repeat (20) begin
+            @(posedge aclk);
+
+            if (m_axis_tvalid) begin
+                $display("FAIL: Output generated after early TLAST");
+                $fatal;
+            end
+        end
+
+        $display("Early-TLAST rejection : PASS");
+        $display("Error status          : PASS");
+        $display("No output generated   : PASS");
+
+        // ------------------------------------------------
         $display("----------------------------------------");
         $display("BLOCK 21 AXI TEST SUMMARY");
         $display("----------------------------------------");

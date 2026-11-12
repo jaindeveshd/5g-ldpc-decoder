@@ -144,6 +144,7 @@ module ldpc_5g_axi_top #(
                     8'h00: begin
                         if (wstrb_hold[0] &&
                             wdata_hold[0] &&
+                            cfg_valid &&
                             !engine_busy &&
                             !output_active) begin
                             engine_start <= 1'b1;
@@ -159,12 +160,11 @@ module ldpc_5g_axi_top #(
 
                     8'h0C: begin
                         if (!engine_busy && !output_active) begin
-                            for (byte_index = 0;
-                                 byte_index < 2;
-                                 byte_index = byte_index + 1)
-                                if (wstrb_hold[byte_index])
-                                    zc_cfg[byte_index*8 +: 8]
-                                        <= wdata_hold[byte_index*8 +: 8];
+                            if (wstrb_hold[0])
+                                zc_cfg[7:0] <= wdata_hold[7:0];
+
+                            if (wstrb_hold[1])
+                                zc_cfg[9:8] <= wdata_hold[9:8];
                         end
                     end
 
@@ -355,6 +355,8 @@ module ldpc_5g_axi_top #(
         read_column * 16'd384 + read_position;
 
     assign m_axis_tlast =
+        m_axis_tvalid &&
+        (output_count != 16'd0) &&
         (output_index == output_count - 1'b1);
 
     assign wrapper_busy =
@@ -396,7 +398,10 @@ module ldpc_5g_axi_top #(
                         output_index <= 16'd0;
                     end
 
-                    if (engine_done && !output_done) begin
+                    if (engine_done &&
+                        !engine_error &&
+                        !loader_error &&
+                        !output_done) begin
                         output_count <= configured_output_count;
                         output_index <= 16'd0;
                         output_active <= 1'b1;
